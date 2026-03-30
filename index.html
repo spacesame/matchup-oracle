@@ -168,6 +168,7 @@
             border-radius: 15px;
             margin-bottom: 2rem;
             display: flex;
+            flex-wrap: wrap; /* Fixes mobile overflow */
             align-items: center;
             gap: 1.5rem;
             border: 1px solid var(--border-color);
@@ -365,9 +366,8 @@
     let currentActiveSearch = '';
     let placeholderInterval;
 
-    // --- Dynamic Placeholder Logic with Brighter Neon Colors ---
     const placeholderExamples = [
-        { text: "Bulbasaur...", g1: "#2ecc71", g2: "#9b59b6" }, // Grass/Poison
+        { text: "Bulbasaur...", g1: "#2ecc71", g2: "#9b59b6" }, 
         { text: "Gen 3...", g1: "#74b9ff", g2: "#a29bfe" },
         { text: "Fire Type...", g1: "#ff6b6b", g2: "#fc466b" }, 
         { text: "Gengar...", g1: "#9b59b6", g2: "#8e44ad" }, 
@@ -386,25 +386,21 @@
         monsterInput.style.setProperty('--ph-opacity', '0.9');
 
         placeholderInterval = setInterval(() => {
-            // Pause the cycle if the user is typing or focused on the input
             if (document.activeElement === monsterInput || monsterInput.value.length > 0) return;
             
-            // Fade out
             monsterInput.style.setProperty('--ph-opacity', '0');
             
             setTimeout(() => {
-                // Change text and colors while invisible
                 index = (index + 1) % placeholderExamples.length;
                 const ex = placeholderExamples[index];
                 monsterInput.placeholder = ex.text;
                 monsterInput.style.setProperty('--ph-g1', ex.g1);
                 monsterInput.style.setProperty('--ph-g2', ex.g2);
                 
-                // Fade back in
                 monsterInput.style.setProperty('--ph-opacity', '0.9');
-            }, 400); // Wait for the 0.4s CSS opacity transition to complete
+            }, 400); 
             
-        }, 3500); // 3.5 seconds between transitions
+        }, 3500); 
     }
 
     const cleanStr = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -450,7 +446,6 @@
     }
 
     monsterInput.addEventListener('input', function() {
-        // Remove gradient from text while typing for better readability
         monsterInput.classList.remove('gradient-active');
         
         const query = cleanStr(this.value);
@@ -681,9 +676,10 @@
         
         applyInputTextGradient(typeHex[t1], t2 ? typeHex[t2] : typeHex[t1]);
 
+        // FIX: Added flex-wrap: wrap to the inner badge container
         activeTypesDiv.innerHTML = `
             <img class="sprite" src="${mon.sprites.front_default}">
-            <div style="display:flex; gap:10px;">
+            <div style="display:flex; flex-wrap: wrap; gap:10px;">
                 <div class="type-badge ${t1} clickable" onclick="monsterInput.value='${t1.charAt(0).toUpperCase() + t1.slice(1)} Type'; executeSearch('${t1}')"><img class="type-icon" src="${getIcon(t1)}">${t1}</div>
                 ${t2 ? `<div class="type-badge ${t2} clickable" onclick="monsterInput.value='${t2.charAt(0).toUpperCase() + t2.slice(1)} Type'; executeSearch('${t2}')"><img class="type-icon" src="${getIcon(t2)}">${t2}</div>` : ''}
             </div>
