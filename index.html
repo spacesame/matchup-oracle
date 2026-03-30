@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>National Matchup Search - Dark Mode</title>
+    <style>
+        :root {
+            --bg-color: #0f0f12;
+            --card-bg: #1e1e26;
+            --text-main: #ffffff;
+            --text-dim: #a0a0b8;
+            --border-color: #30303f;
+            --input-bg: #252530;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            max-width: 700px;
+            margin: 4rem auto; 
+            padding: 2rem;
+            line-height: 1.5;
+        }
+        
+        .card-glow-wrapper {
+            position: relative;
+            border-radius: 20px;
+            z-index: 1;
+            --glow-1: transparent;
+            --glow-2: transparent;
+        }
+
+        .card-content {
+            position: relative;
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 2.5rem;
+            z-index: 2;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            min-height: 400px;
+        }
+
+        .card-glow-wrapper::before, .card-glow-wrapper::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(115deg, var(--glow-1), var(--glow-2), rgba(255,255,255,0.2), var(--glow-1), var(--glow-2));
+            background-size: 300% 300%;
+            z-index: 0; 
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .card-glow-wrapper::before { inset: -10px; border-radius: 24px; filter: blur(25px); }
+        .card-glow-wrapper::after { inset: -30px; border-radius: 40px; filter: blur(60px); }
+
+        .card-glow-wrapper.is-loading::before, .card-glow-wrapper.is-loading::after {
+            opacity: 0.8;
+            --glow-1: #3f5efb; 
+            --glow-2: #fc466b;
+            animation: gradient-pan 2s linear infinite;
+        }
+
+        .card-glow-wrapper.is-loaded::before {
+            opacity: 0.9;
+            animation: gradient-pan 4s ease-in-out infinite alternate, breathe 3s ease-in-out infinite alternate;
+        }
+        .card-glow-wrapper.is-loaded::after {
+            opacity: 0.4;
+            animation: gradient-pan 6s ease-in-out infinite alternate-reverse, breathe 4s ease-in-out infinite alternate-reverse;
+        }
+
+        @keyframes gradient-pan {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes breathe {
+            0% { transform: scale(0.97); filter: blur(20px); }
+            100% { transform: scale(1.05); filter: blur(35px); }
+        }
+
+        h2 { margin-top: 0; color: var(--text-main); font-weight: 800; letter-spacing: -0.5px; }
+        
+        .controls { display: flex; gap: 1.5rem; margin-bottom: 2rem; flex-wrap: wrap; }
+        .select-group { display: flex; flex-direction: column; flex: 1; min-width: 200px; position: relative; }
+        
+        label {
+            font-size: 0.75rem;
+            font-weight: 800;
+            margin-bottom: 0.6rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        input, select {
+            padding: 1rem;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+            font-size: 1rem;
+            background-color: var(--input-bg);
+            color: white;
+            transition: all 0.3s ease;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        input:focus { outline: none; border-color: #74b9ff; box-shadow: 0 0 15px rgba(116, 185, 255, 0.2); }
+        
+        .suggestions-box {
+            position: absolute;
+            top: 100%; left: 0; right: 0;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            margin-top: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+        .suggestion-item {
+            padding: 0.8rem 1.2rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .suggestion-item:hover { background-color: var(--input-bg); color: #74b9ff; }
+        .suggestion-type-tag { font-size: 0.7rem; background: var(--border-color); padding: 0.2rem 0.5rem; border-radius: 4px; color: var(--text-dim); }
+        
+        .current-typing {
+            background: rgba(255,255,255,0.03);
+            padding: 1.5rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            border: 1px solid var(--border-color);
+            min-height: 90px;
+        }
+
+        .sprite {
+            width: 90px; height: 90px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 50%;
+            padding: 5px;
+        }
+
+        #results, #type-roster { display: none; animation: fadeIn 0.5s ease forwards; }
+        
+        .result-group { margin-bottom: 2rem; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .result-group h3 { font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+        .types-container { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+        
+        .type-badge {
+            padding: 0.6rem 1rem;
+            border-radius: 10px;
+            color: white;
+            font-weight: 700;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            text-transform: uppercase;
+        }
+        
+        .type-badge.clickable { cursor: pointer; transition: all 0.2s ease; }
+        .type-badge.clickable:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.5); filter: brightness(1.1); }
+
+        .type-icon { width: 18px; height: 18px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)); }
+
+        .roster-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 1rem;
+        }
+        .roster-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem 0.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .roster-card:hover {
+            background: rgba(255,255,255,0.08);
+            transform: translateY(-4px);
+            border-color: var(--text-dim);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        }
+        .roster-sprite { width: 70px; height: 70px; image-rendering: pixelated; }
+        .roster-name { font-size: 0.85rem; font-weight: 700; color: var(--text-main); text-transform: capitalize; margin-top: 0.5rem; }
+
+        .site-footer {
+            margin-top: 4rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            line-height: 1.8;
+        }
+        .site-footer a { color: #74b9ff; text-decoration: none; }
+        
+        /* New Alien Gradient Link CSS */
+        .alien-link {
+            background: linear-gradient(90deg, #39ff14, #ccff00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 800;
+            text-decoration: none;
+            transition: filter 0.3s ease;
+        }
+        .alien-link:hover {
+            filter: drop-shadow(0 0 8px rgba(57, 255, 20, 0.6));
+        }
+        
+        .normal { background-color: #A8A77A; } .fire { background-color: #EE8130; }
+        .water { background-color: #6390F0; } .electric { background-color: #F7D02C; }
+        .grass { background-color: #7AC74C; } .ice { background-color: #96D9D6; }
+        .fighting { background-color: #C22E28; } .poison { background-color: #A33EA1; }
+        .ground { background-color: #E2BF65; } .flying { background-color: #A98FF3; }
+        .psychic { background-color: #F95587; } .bug { background-color: #A6B91A; }
+        .rock { background-color: #B6A136; } .ghost { background-color: #735797; }
+        .dragon { background-color: #6F35FC; } .dark { background-color: #705848; }
+        .steel { background-color: #B7B7CE; } .fairy { background-color: #D685AD; }
+    </style>
+</head>
+<body>
+
+<div class="card-glow-wrapper" id="app-card">
+    <div class="card-content">
+        <h2>Matchup Oracle</h2>
+        
+        <div class="controls">
+            <div class="select-group">
+                <label>Identify Pokémon, Type, or Gen</label>
+                <input type="text" id="monster-input" placeholder="Waking up Rotom..." disabled autocomplete="off">
+                <div id="suggestions-box" class="suggestions-box"></div>
+            </div>
+            <div class="select-group">
+                <label>Timeline (Era)</label>
+                <select id="era-select">
+                    <option value="1">Gen 1 Classic</option>
+                    <option value="2">Gen 2 - 5</option>
+                    <option value="6" selected>Gen 6+ Modern</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="current-typing" id="active-types">
+            <span style="color: var(--text-dim)">Search a Pokémon to see matchups, or a Type/Gen to see a roster.</span>
+        </div>
+
+        <div id="results">
+            <div class="result-group" id="group-4"><h3>🛑 It's Ultra Super Effective! (4x)</h3><div class="types-container"></div></div>
+            <div class="result-group" id="group-2"><h3>⚠️ It's Super Effective! (2x)</h3><div class="types-container"></div></div>
+            <div class="result-group" id="group-0.5"><h3>🛡️ It's Not Very Effective... (0.5x)</h3><div class="types-container"></div></div>
+            <div class="result-group" id="group-0.25"><h3>💎 It's Not Very Effective... (0.25x)</h3><div class="types-container"></div></div>
+            <div class="result-group" id="group-0"><h3>🚫 It Doesn't Affect Pokémon... (0x)</h3><div class="types-container"></div></div>
+        </div>
+
+        <div id="type-roster">
+            </div>
+    </div>
+</div>
+
+<div class="site-footer">
+    <p>👽Created by <a href="https://github.com/spacesame?tab=overview&from=2026-03-01&to=2026-03-30" target="_blank" class="alien-link">Space</a> using Gemini on a Chromebook during Lunch.</p>
+    <p>⚡ Data: <a href="https://pokeapi.co/" target="_blank">PokéAPI</a> | Icons: <a href="https://github.com/duiker101/pokemon-type-svg-icons" target="_blank">Duiker101</a></p>
+</div>
+
+<script>
+    const types = ["normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"];
+    const getIcon = (type) => `https://raw.githubusercontent.com/duiker101/pokemon-type-svg-icons/master/icons/${type}.svg`;
+
+    const typeHex = {
+        normal: '#A8A77A', fire: '#EE8130', water: '#6390F0', electric: '#F7D02C',
+        grass: '#7AC74C', ice: '#96D9D6', fighting: '#C22E28', poison: '#A33EA1',
+        ground: '#E2BF65', flying: '#A98FF3', psychic: '#F95587', bug: '#A6B91A',
+        rock: '#B6A136', ghost: '#735797', dragon: '#6F35FC', dark: '#705848',
+        steel: '#B7B7CE', fairy: '#D685AD'
+    };
+
+    const typeChart = {
+        normal: { weak: ['fighting'], immune: ['ghost'] },
+        fire: { weak: ['water', 'ground', 'rock'], resist: ['fire', 'grass', 'ice', 'bug', 'steel', 'fairy'] },
+        water: { weak: ['electric', 'grass'], resist: ['fire', 'water', 'ice', 'steel'] },
+        grass: { weak: ['fire', 'ice', 'poison', 'flying', 'bug'], resist: ['water', 'electric', 'grass', 'ground'] },
+        electric: { weak: ['ground'], resist: ['electric', 'flying', 'steel'] },
+        ice: { weak: ['fire', 'fighting', 'rock', 'steel'], resist: ['ice'] },
+        fighting: { weak: ['flying', 'psychic', 'fairy'], resist: ['bug', 'rock', 'dark'] },
+        poison: { weak: ['ground', 'psychic'], resist: ['grass', 'fighting', 'poison', 'bug', 'fairy'] },
+        ground: { weak: ['water', 'grass', 'ice'], resist: ['poison', 'rock'], immune: ['electric'] },
+        flying: { weak: ['electric', 'ice', 'rock'], resist: ['grass', 'fighting', 'bug'], immune: ['ground'] },
+        psychic: { weak: ['bug', 'ghost', 'dark'], resist: ['fighting', 'psychic'] },
+        bug: { weak: ['fire', 'flying', 'rock'], resist: ['grass', 'fighting', 'ground'] },
+        rock: { weak: ['water', 'grass', 'fighting', 'ground', 'steel'], resist: ['normal', 'fire', 'poison', 'flying'] },
+        ghost: { weak: ['ghost', 'dark'], resist: ['poison', 'bug'], immune: ['normal', 'fighting'] },
+        dragon: { weak: ['ice', 'dragon', 'fairy'], resist: ['fire', 'water', 'grass', 'electric'] },
+        dark: { weak: ['fighting', 'bug', 'fairy'], resist: ['ghost', 'dark'], immune: ['psychic'] },
+        steel: { weak: ['fire', 'fighting', 'ground'], resist: ['normal', 'grass', 'ice', 'flying', 'psychic', 'bug', 'rock', 'dragon', 'steel', 'fairy'], immune: ['poison'] },
+        fairy: { weak: ['poison', 'steel'], resist: ['fighting', 'bug', 'dark'], immune: ['dragon'] }
+    };
+
+    const eraOverrides = {
+        81: { 1: ["electric"] }, 82: { 1: ["electric"] }, 
+        35: { 1: ["normal"], 2: ["normal"] }, 36: { 1: ["normal"], 2: ["normal"] }, 
+        39: { 1: ["normal"], 2: ["normal"] }, 40: { 1: ["normal"], 2: ["normal"] }, 
+        122: { 1: ["psychic"], 2: ["psychic"] }, 
+        173: { 2: ["normal"] }, 174: { 2: ["normal"] }, 
+        175: { 2: ["normal"] }, 176: { 2: ["normal", "flying"] }, 
+        183: { 2: ["water"] }, 184: { 2: ["water"] }, 
+        209: { 2: ["normal"] }, 210: { 2: ["normal"] } 
+    };
+
+    const monsterInput = document.getElementById('monster-input');
+    const suggestionsBox = document.getElementById('suggestions-box');
+    const eraSelect = document.getElementById('era-select');
+    const activeTypesDiv = document.getElementById('active-types');
+    const appCard = document.getElementById('app-card');
+    const resultsView = document.getElementById('results');
+    const typeRosterView = document.getElementById('type-roster');
+    
+    let pokemonDataCache = {};
+    let searchMap = {}; 
+    let activeRoster = []; 
+    let currentActiveSearch = '';
+
+    const cleanStr = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    async function loadPokedex() {
+        try {
+            const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1025');
+            const data = await res.json();
+            
+            data.results.forEach((p, index) => {
+                const id = index + 1;
+                let displayName = p.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                
+                if(id === 122) displayName = "Mr. Mime";
+                if(id === 250) displayName = "Ho-Oh";
+                if(id === 439) displayName = "Mime Jr.";
+                if(id === 474) displayName = "Porygon-Z";
+                if(id === 772) displayName = "Type: Null";
+
+                const searchKey = cleanStr(p.name);
+                activeRoster.push({ id, name: displayName, searchKey, isType: false, isGen: false });
+                searchMap[searchKey] = id;
+            });
+
+            // Map Types
+            types.forEach(t => {
+                const name = t.charAt(0).toUpperCase() + t.slice(1) + " Type";
+                const searchKey = cleanStr(name);
+                activeRoster.push({ id: t, name: name, searchKey, isType: true, isGen: false });
+                searchMap[searchKey] = t;
+                searchMap[cleanStr(t)] = t; 
+            });
+
+            // Map Generations
+            for (let i = 1; i <= 9; i++) {
+                const name = `Gen ${i} Roster`;
+                activeRoster.push({ id: `gen-${i}`, name: name, searchKey: `gen${i}`, isType: false, isGen: true });
+                searchMap[`gen${i}`] = `gen-${i}`;
+                searchMap[`generation${i}`] = `gen-${i}`;
+            }
+
+            monsterInput.placeholder = "E.g. Scizor, Gen 3, or Water Type...";
+            monsterInput.disabled = false;
+        } catch (e) { monsterInput.placeholder = "Offline."; }
+    }
+
+    monsterInput.addEventListener('input', function() {
+        const query = cleanStr(this.value);
+        suggestionsBox.innerHTML = '';
+        if (query.length < 1) { suggestionsBox.style.display = 'none'; return; }
+        
+        const era = parseInt(eraSelect.value);
+        let maxId = 1025;
+        if (era === 1) maxId = 151;
+        if (era === 2) maxId = 649;
+
+        const matches = activeRoster.filter(p => {
+            if (!p.searchKey.includes(query)) return false;
+            
+            // Respect the timeline rules
+            if (!p.isType && !p.isGen && p.id > maxId) return false;
+            
+            if (p.isGen) {
+                const genNum = parseInt(p.id.split('-')[1]);
+                if (era === 1 && genNum > 1) return false;
+                if (era === 2 && genNum > 5) return false;
+            }
+            
+            return true;
+        }).slice(0, 7);
+        
+        if (matches.length > 0) {
+            suggestionsBox.style.display = 'block';
+            matches.forEach(m => {
+                const d = document.createElement('div');
+                d.className = 'suggestion-item';
+                
+                if (m.isType) {
+                    d.innerHTML = `<span>${m.name}</span> <span class="suggestion-type-tag">TYPE</span>`;
+                } else if (m.isGen) {
+                    d.innerHTML = `<span>${m.name}</span> <span class="suggestion-type-tag">ERA</span>`;
+                } else {
+                    d.innerHTML = `<span>${m.name}</span>`;
+                }
+                
+                d.onclick = () => { 
+                    monsterInput.value = m.name; 
+                    suggestionsBox.style.display = 'none'; 
+                    executeSearch(m.id); 
+                };
+                suggestionsBox.appendChild(d);
+            });
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (e.target !== monsterInput && e.target !== suggestionsBox) suggestionsBox.style.display = 'none';
+    });
+
+    monsterInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            const query = cleanStr(this.value).replace('type', '');
+            if (searchMap[query]) {
+                suggestionsBox.style.display = 'none';
+                executeSearch(searchMap[query]);
+            }
+        }
+    });
+
+    function getMultiplier(def, atk, era) {
+        if (!def) return 1;
+        const chart = typeChart[def];
+        let mult = 1;
+
+        if (chart.immune?.includes(atk)) mult = 0;
+        else if (chart.weak?.includes(atk)) mult = 2;
+        else if (chart.resist?.includes(atk)) mult = 0.5;
+
+        if (era === 1) {
+            if (def === 'psychic' && atk === 'ghost') return 0; 
+            if (def === 'bug' && atk === 'poison') return 2; 
+            if (def === 'poison' && atk === 'bug') return 2;
+            if (def === 'fire' && atk === 'ice') return 1; 
+        }
+
+        if (era === 1 || era === 2) {
+            if (def === 'steel' && (atk === 'dark' || atk === 'ghost')) return 0.5;
+        }
+
+        return mult;
+    }
+
+    async function executeSearch(query) {
+        currentActiveSearch = query;
+        appCard.className = 'card-glow-wrapper is-loading';
+        
+        if (typeof query === 'string' && query.startsWith('gen-')) {
+            await renderGenData(parseInt(query.split('-')[1]));
+        } else if (types.includes(query)) {
+            await renderTypeData(query);
+        } else {
+            await renderPokemonData(query);
+        }
+    }
+
+    async function renderGenData(gen) {
+        resultsView.style.display = 'none';
+        typeRosterView.style.display = 'block';
+        
+        // Ensure the era select matches what they are viewing to prevent timeline weirdness
+        if (gen > 5 && parseInt(eraSelect.value) < 6) eraSelect.value = "6";
+        else if (gen > 1 && eraSelect.value === "1") eraSelect.value = "2";
+
+        appCard.style.setProperty('--glow-1', '#74b9ff');
+        appCard.style.setProperty('--glow-2', '#a29bfe');
+
+        activeTypesDiv.innerHTML = `
+            <div class="type-badge normal" style="font-size: 1rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1);">
+                Generation ${gen} Roster
+            </div>
+        `;
+
+        const genRanges = {
+            1: [1, 151], 2: [152, 251], 3: [252, 386], 
+            4: [387, 493], 5: [494, 649], 6: [650, 721], 
+            7: [722, 809], 8: [810, 905], 9: [906, 1025]
+        };
+
+        const [startId, endId] = genRanges[gen];
+        const validPokemon = activeRoster.filter(p => !p.isType && !p.isGen && p.id >= startId && p.id <= endId);
+
+        let gridHtml = '<div class="roster-grid">';
+        validPokemon.forEach(p => {
+            const spriteUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png`;
+            gridHtml += `
+                <div class="roster-card" onclick="monsterInput.value='${p.name}'; executeSearch(${p.id});">
+                    <img class="roster-sprite" src="${spriteUrl}" alt="${p.name}" loading="lazy">
+                    <div class="roster-name">${p.name}</div>
+                </div>
+            `;
+        });
+        gridHtml += '</div>';
+        typeRosterView.innerHTML = gridHtml;
+        appCard.className = 'card-glow-wrapper is-loaded';
+    }
+
+    async function renderTypeData(type) {
+        resultsView.style.display = 'none';
+        typeRosterView.style.display = 'block';
+        
+        appCard.style.setProperty('--glow-1', typeHex[type]);
+        appCard.style.setProperty('--glow-2', typeHex[type]);
+
+        activeTypesDiv.innerHTML = `
+            <div class="type-badge ${type}" style="font-size: 1rem; padding: 0.8rem 1.5rem;">
+                <img class="type-icon" src="${getIcon(type)}" style="width: 24px; height: 24px;"> 
+                ${type.charAt(0).toUpperCase() + type.slice(1)} Type Database
+            </div>
+        `;
+
+        try {
+            const res = await fetch(`https://pokeapi.co/api/v2/type/${type}`);
+            const data = await res.json();
+            
+            const era = parseInt(eraSelect.value);
+            let maxId = 1025; 
+            if (era === 1) maxId = 151;  
+            if (era === 2) maxId = 649;  
+            
+            const validPokemon = data.pokemon.filter(p => {
+                const urlParts = p.pokemon.url.split('/');
+                const pId = parseInt(urlParts[urlParts.length - 2]);
+                return pId <= maxId && pId < 10000; 
+            });
+
+            if (validPokemon.length === 0) {
+                typeRosterView.innerHTML = `<p style="color: var(--text-dim); text-align: center;">No ${type.charAt(0).toUpperCase() + type.slice(1)}-type Pokémon existed during this era.</p>`;
+            } else {
+                let gridHtml = '<div class="roster-grid">';
+                validPokemon.forEach(p => {
+                    const urlParts = p.pokemon.url.split('/');
+                    const pId = parseInt(urlParts[urlParts.length - 2]);
+                    const spriteUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pId}.png`;
+                    
+                    let pName = p.pokemon.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    if(pId === 122) pName = "Mr. Mime";
+                    if(pId === 250) pName = "Ho-Oh";
+                    if(pId === 439) pName = "Mime Jr.";
+                    if(pId === 474) pName = "Porygon-Z";
+                    if(pId === 772) pName = "Type: Null";
+
+                    gridHtml += `
+                        <div class="roster-card" onclick="monsterInput.value='${pName}'; executeSearch(${pId});">
+                            <img class="roster-sprite" src="${spriteUrl}" alt="${pName}" loading="lazy">
+                            <div class="roster-name">${pName}</div>
+                        </div>
+                    `;
+                });
+                gridHtml += '</div>';
+                typeRosterView.innerHTML = gridHtml;
+            }
+            
+            appCard.className = 'card-glow-wrapper is-loaded';
+        } catch (e) {
+            typeRosterView.innerHTML = '<p>Error loading type database.</p>';
+            appCard.className = 'card-glow-wrapper';
+        }
+    }
+
+    async function renderPokemonData(id) {
+        typeRosterView.style.display = 'none';
+        resultsView.style.display = 'block';
+        
+        const era = parseInt(eraSelect.value);
+
+        if (!pokemonDataCache[id]) {
+            const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
+            pokemonDataCache[id] = await res.json();
+        }
+
+        const mon = pokemonDataCache[id];
+        
+        let currentTypes = mon.types.map(t => t.type.name);
+        if (eraOverrides[id] && eraOverrides[id][era]) {
+            currentTypes = eraOverrides[id][era];
+        }
+
+        const t1 = currentTypes[0];
+        const t2 = currentTypes[1] || null;
+
+        appCard.style.setProperty('--glow-1', typeHex[t1]);
+        appCard.style.setProperty('--glow-2', t2 ? typeHex[t2] : typeHex[t1]);
+        appCard.className = 'card-glow-wrapper is-loaded';
+
+        activeTypesDiv.innerHTML = `
+            <img class="sprite" src="${mon.sprites.front_default}">
+            <div style="display:flex; gap:10px;">
+                <div class="type-badge ${t1} clickable" onclick="monsterInput.value='${t1.charAt(0).toUpperCase() + t1.slice(1)} Type'; executeSearch('${t1}')"><img class="type-icon" src="${getIcon(t1)}">${t1}</div>
+                ${t2 ? `<div class="type-badge ${t2} clickable" onclick="monsterInput.value='${t2.charAt(0).toUpperCase() + t2.slice(1)} Type'; executeSearch('${t2}')"><img class="type-icon" src="${getIcon(t2)}">${t2}</div>` : ''}
+            </div>
+        `;
+
+        let activeAtk = types;
+        if (era === 1) activeAtk = types.filter(t => !['dark','steel','fairy'].includes(t));
+        if (era === 2) activeAtk = types.filter(t => t !== 'fairy');
+
+        const scores = { 4: [], 2: [], 0.5: [], 0.25: [], 0: [] };
+        activeAtk.forEach(a => {
+            const m = getMultiplier(t1, a, era) * getMultiplier(t2, a, era);
+            if (scores[m]) scores[m].push(a);
+        });
+
+        [4, 2, 0.5, 0.25, 0].forEach(m => {
+            const row = document.getElementById(`group-${m}`);
+            const cont = row.querySelector('.types-container');
+            cont.innerHTML = '';
+            
+            if (scores[m] && scores[m].length > 0) {
+                row.style.display = 'block';
+                scores[m].forEach(type => {
+                    cont.innerHTML += `<div class="type-badge ${type} clickable" onclick="monsterInput.value='${type.charAt(0).toUpperCase() + type.slice(1)} Type'; executeSearch('${type}')"><img class="type-icon" src="${getIcon(type)}">${type}</div>`;
+                });
+            } else { 
+                row.style.display = 'none'; 
+            }
+        });
+    }
+
+    eraSelect.onchange = () => {
+        monsterInput.value = '';
+        if (currentActiveSearch) executeSearch(currentActiveSearch);
+    };
+    
+    loadPokedex();
+</script>
+
+</body>
+</html>
