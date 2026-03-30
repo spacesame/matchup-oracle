@@ -105,11 +105,37 @@
             font-size: 1rem;
             background-color: var(--input-bg);
             color: white;
-            transition: all 0.3s ease;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
             width: 100%;
             box-sizing: border-box;
         }
         input:focus { outline: none; border-color: #74b9ff; box-shadow: 0 0 15px rgba(116, 185, 255, 0.2); }
+        
+        /* Dynamic Placeholder Gradients with smooth opacity transition */
+        input::-webkit-input-placeholder {
+            background-image: linear-gradient(90deg, var(--ph-g1, var(--text-dim)), var(--ph-g2, var(--text-dim)));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: var(--ph-opacity, 0.9);
+            transition: opacity 0.4s ease;
+        }
+        input::-moz-placeholder {
+            color: transparent;
+            background-image: linear-gradient(90deg, var(--ph-g1, var(--text-dim)), var(--ph-g2, var(--text-dim)));
+            background-clip: text;
+            opacity: var(--ph-opacity, 0.9);
+            transition: opacity 0.4s ease;
+        }
+
+        /* Dynamic Input Text Gradients (When Selected) */
+        input.gradient-active {
+            background-image: linear-gradient(90deg, var(--input-g1), var(--input-g2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            color: transparent; 
+            font-weight: bold;
+        }
         
         .suggestions-box {
             position: absolute;
@@ -213,7 +239,6 @@
         }
         .site-footer a { color: #74b9ff; text-decoration: none; }
         
-        /* New Alien Gradient Link CSS */
         .alien-link {
             background: linear-gradient(90deg, #39ff14, #ccff00);
             -webkit-background-clip: text;
@@ -338,6 +363,49 @@
     let searchMap = {}; 
     let activeRoster = []; 
     let currentActiveSearch = '';
+    let placeholderInterval;
+
+    // --- Dynamic Placeholder Logic with Brighter Neon Colors ---
+    const placeholderExamples = [
+        { text: "Bulbasaur...", g1: "#2ecc71", g2: "#9b59b6" }, // Grass/Poison
+        { text: "Gen 3...", g1: "#74b9ff", g2: "#a29bfe" },
+        { text: "Fire Type...", g1: "#ff6b6b", g2: "#fc466b" }, 
+        { text: "Gengar...", g1: "#9b59b6", g2: "#8e44ad" }, 
+        { text: "Fairy Type...", g1: "#ff9ff3", g2: "#f368e0" }, 
+        { text: "Rayquaza...", g1: "#1dd1a1", g2: "#54a0ff" }, 
+        { text: "Electric Type...", g1: "#feca57", g2: "#ff9f43" },
+        { text: "Lucario...", g1: "#54a0ff", g2: "#c8d6e5" },
+        { text: "Waking up Rotom...", g1: "#ff9f43", g2: "#ff6b6b" }
+    ];
+
+    function startPlaceholderCycle() {
+        let index = 0;
+        monsterInput.placeholder = placeholderExamples[0].text;
+        monsterInput.style.setProperty('--ph-g1', placeholderExamples[0].g1);
+        monsterInput.style.setProperty('--ph-g2', placeholderExamples[0].g2);
+        monsterInput.style.setProperty('--ph-opacity', '0.9');
+
+        placeholderInterval = setInterval(() => {
+            // Pause the cycle if the user is typing or focused on the input
+            if (document.activeElement === monsterInput || monsterInput.value.length > 0) return;
+            
+            // Fade out
+            monsterInput.style.setProperty('--ph-opacity', '0');
+            
+            setTimeout(() => {
+                // Change text and colors while invisible
+                index = (index + 1) % placeholderExamples.length;
+                const ex = placeholderExamples[index];
+                monsterInput.placeholder = ex.text;
+                monsterInput.style.setProperty('--ph-g1', ex.g1);
+                monsterInput.style.setProperty('--ph-g2', ex.g2);
+                
+                // Fade back in
+                monsterInput.style.setProperty('--ph-opacity', '0.9');
+            }, 400); // Wait for the 0.4s CSS opacity transition to complete
+            
+        }, 3500); // 3.5 seconds between transitions
+    }
 
     const cleanStr = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -361,7 +429,6 @@
                 searchMap[searchKey] = id;
             });
 
-            // Map Types
             types.forEach(t => {
                 const name = t.charAt(0).toUpperCase() + t.slice(1) + " Type";
                 const searchKey = cleanStr(name);
@@ -370,7 +437,6 @@
                 searchMap[cleanStr(t)] = t; 
             });
 
-            // Map Generations
             for (let i = 1; i <= 9; i++) {
                 const name = `Gen ${i} Roster`;
                 activeRoster.push({ id: `gen-${i}`, name: name, searchKey: `gen${i}`, isType: false, isGen: true });
@@ -378,12 +444,15 @@
                 searchMap[`generation${i}`] = `gen-${i}`;
             }
 
-            monsterInput.placeholder = "E.g. Bulbasaur, Gen 3, or Water Type...";
             monsterInput.disabled = false;
+            startPlaceholderCycle(); 
         } catch (e) { monsterInput.placeholder = "Offline."; }
     }
 
     monsterInput.addEventListener('input', function() {
+        // Remove gradient from text while typing for better readability
+        monsterInput.classList.remove('gradient-active');
+        
         const query = cleanStr(this.value);
         suggestionsBox.innerHTML = '';
         if (query.length < 1) { suggestionsBox.style.display = 'none'; return; }
@@ -395,16 +464,12 @@
 
         const matches = activeRoster.filter(p => {
             if (!p.searchKey.includes(query)) return false;
-            
-            // Respect the timeline rules
             if (!p.isType && !p.isGen && p.id > maxId) return false;
-            
             if (p.isGen) {
                 const genNum = parseInt(p.id.split('-')[1]);
                 if (era === 1 && genNum > 1) return false;
                 if (era === 2 && genNum > 5) return false;
             }
-            
             return true;
         }).slice(0, 7);
         
@@ -414,13 +479,9 @@
                 const d = document.createElement('div');
                 d.className = 'suggestion-item';
                 
-                if (m.isType) {
-                    d.innerHTML = `<span>${m.name}</span> <span class="suggestion-type-tag">TYPE</span>`;
-                } else if (m.isGen) {
-                    d.innerHTML = `<span>${m.name}</span> <span class="suggestion-type-tag">ERA</span>`;
-                } else {
-                    d.innerHTML = `<span>${m.name}</span>`;
-                }
+                if (m.isType) d.innerHTML = `<span>${m.name}</span> <span class="suggestion-type-tag">TYPE</span>`;
+                else if (m.isGen) d.innerHTML = `<span>${m.name}</span> <span class="suggestion-type-tag">ERA</span>`;
+                else d.innerHTML = `<span>${m.name}</span>`;
                 
                 d.onclick = () => { 
                     monsterInput.value = m.name; 
@@ -469,6 +530,12 @@
         return mult;
     }
 
+    function applyInputTextGradient(g1, g2) {
+        monsterInput.style.setProperty('--input-g1', g1);
+        monsterInput.style.setProperty('--input-g2', g2);
+        monsterInput.classList.add('gradient-active');
+    }
+
     async function executeSearch(query) {
         currentActiveSearch = query;
         appCard.className = 'card-glow-wrapper is-loading';
@@ -486,12 +553,12 @@
         resultsView.style.display = 'none';
         typeRosterView.style.display = 'block';
         
-        // Ensure the era select matches what they are viewing to prevent timeline weirdness
         if (gen > 5 && parseInt(eraSelect.value) < 6) eraSelect.value = "6";
         else if (gen > 1 && eraSelect.value === "1") eraSelect.value = "2";
 
         appCard.style.setProperty('--glow-1', '#74b9ff');
         appCard.style.setProperty('--glow-2', '#a29bfe');
+        applyInputTextGradient('#74b9ff', '#a29bfe');
 
         activeTypesDiv.innerHTML = `
             <div class="type-badge normal" style="font-size: 1rem; padding: 0.8rem 1.5rem; background: rgba(255,255,255,0.1);">
@@ -529,6 +596,7 @@
         
         appCard.style.setProperty('--glow-1', typeHex[type]);
         appCard.style.setProperty('--glow-2', typeHex[type]);
+        applyInputTextGradient(typeHex[type], typeHex[type]);
 
         activeTypesDiv.innerHTML = `
             <div class="type-badge ${type}" style="font-size: 1rem; padding: 0.8rem 1.5rem;">
@@ -610,6 +678,8 @@
         appCard.style.setProperty('--glow-1', typeHex[t1]);
         appCard.style.setProperty('--glow-2', t2 ? typeHex[t2] : typeHex[t1]);
         appCard.className = 'card-glow-wrapper is-loaded';
+        
+        applyInputTextGradient(typeHex[t1], t2 ? typeHex[t2] : typeHex[t1]);
 
         activeTypesDiv.innerHTML = `
             <img class="sprite" src="${mon.sprites.front_default}">
@@ -647,6 +717,7 @@
 
     eraSelect.onchange = () => {
         monsterInput.value = '';
+        monsterInput.classList.remove('gradient-active');
         if (currentActiveSearch) executeSearch(currentActiveSearch);
     };
     
